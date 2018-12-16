@@ -9,6 +9,8 @@ import threading
 import sys
 import paho.mqtt.client as mqtt
 import cgatemqtt.handlers.lighting as lighting
+import cgatemqtt.components.light as light
+import cgatemqtt.components.fan as fan
 import cgatemqtt.cgateapi.command as cmd
 
 class CommandManager(threading.Thread):
@@ -21,7 +23,11 @@ class CommandManager(threading.Thread):
     def on_message(self,client, userdata, msg):
         logger.debug("MQTT-Rx: %s %s" % (msg.topic,str(msg.payload)))
         # translate command to CGate command
-        cgate_cmd = lighting.mqtt2cgate(msg.topic, msg.payload)
+        if msg.topic.startswith('cgate/lighting/cmd/fan'):
+            cgate_cmd = fan.mqtt2cgate(msg.topic, msg.payload)
+        else:
+            # default base topic is for lights
+            cgate_cmd = light.mqtt2cgate(msg.topic, msg.payload)
         # send command to CGate
         if cgate_cmd is not None:
             logger.debug("CGate-Tx: %s" % cgate_cmd)
@@ -44,7 +50,7 @@ class EventManager(threading.Thread):
     def __init__(self,mqttclient):
         threading.Thread.__init__(self)
         self.mqttclient = mqttclient
-        self.lighting_eh = lighting.LightingEventHandler()
+        self.lighting_eh = lighting.LightingEventHandler(config)
 
     def run(self):
         # connect to CGate event port
@@ -53,11 +59,17 @@ class EventManager(threading.Thread):
         while True:
             event = self.tn.read_until(b"\n")
             logger.debug("CGate-Event: %s" % event.decode("utf-8").rstrip())
-            if self.lighting_eh.match(event.decode("utf-8")):
-                logger.debug("MQTT-Tx: topic:%s data:%s" % (self.lighting_eh.topic,
-                      self.lighting_eh.to_json()))
+            comp = self.lighting_eh.match(event.decode("utf-8"))
+            #if comp is None:
+                #try next event handler
+                # only have the lighting eh for now
+
+            #publish event to MQTT
+            if comp is not None:
+                logger.debug("MQTT-Tx: topic:%s data:%s" % (comp.topic,
+                      comp.get_message()))
                 # send to mqtt topic
-                self.mqttclient.publish(self.lighting_eh.topic, payload=self.lighting_eh.to_json())
+                self.mqttclient.publish(comp.topic, payload=comp.get_message())
 
 def on_connect(client, userdata, flags, rc):
     logger.info("Connected to mqtt broker with result code "+str(rc))
