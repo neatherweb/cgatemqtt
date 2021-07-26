@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='cgatemqtt',
-      version='0.1',
+      version='0.2',
       description='MQTT gateway service for Clipsal Cbus smart home',
       url=None,
       author='Jason Neatherway',

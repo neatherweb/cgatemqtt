@@ -40,7 +40,6 @@ class Light():
         self.msg['effect'] = effect
         self.msg['state'] = state
         self.msg['transition'] = transition
-        self.msg['white_value'] = white_value
         self.msg['source'] = source
 
     def set_from_cgate_data(self,cmd,address,param,src):
